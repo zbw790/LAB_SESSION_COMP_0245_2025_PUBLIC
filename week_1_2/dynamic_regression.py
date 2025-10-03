@@ -61,7 +61,7 @@ def main():
         q_d, qd_d = ref.get_values(current_time)  # Desired position and velocity
         
         # Control command
-        tau_cmd = feedback_lin_ctrl(dyn_model, q_mes, qd_mes, q_des, qd_des_clip, kp, kd)  # Zero torque command
+        tau_cmd = feedback_lin_ctrl(dyn_model, q_mes, qd_mes, q_d, qd_d, kp, kd)  # Zero torque command
         cmd.SetControlCmd(tau_cmd, ["torque"]*7)  # Set the torque com
         sim.Step(cmd, "torque")
 
