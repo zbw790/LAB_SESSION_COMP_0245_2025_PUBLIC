@@ -14,13 +14,16 @@ class Rollout:
     time: List[float]
     q_mes_all: List[List[float]]
     qd_mes_all: List[List[float]]
+    q_d_all: List[List[float]]
+    qd_d_all: List[List[float]]
     tau_mes_all: List[List[float]]
     cart_pos_all: List[List[float]]
     cart_ori_all: List[List[float]]
+    tau_cmd_all: List[List[float]]
 
     @classmethod
     def from_dict(cls, idx: int, path: Path, d: Dict[str, Any]) -> "Rollout":
-        required = ["time", "q_mes_all", "qd_mes_all",
+        required = ["time", "q_mes_all", "qd_mes_all","q_d_all", "qd_d_all",
                     "tau_mes_all", "cart_pos_all", "cart_ori_all"]
         missing = [k for k in required if k not in d]
         if missing:
@@ -31,9 +34,12 @@ class Rollout:
             time=d["time"],
             q_mes_all=d["q_mes_all"],
             qd_mes_all=d["qd_mes_all"],
+            q_d_all=d["q_d_all"],  # ✅ 新增
+            qd_d_all=d["qd_d_all"],
             tau_mes_all=d["tau_mes_all"],
             cart_pos_all=d["cart_pos_all"],
             cart_ori_all=d["cart_ori_all"],
+            tau_cmd_all=d["tau_cmd_all"]
         )
 
 
@@ -103,7 +109,7 @@ def load_rollouts(
             else:
                 targets.append((i, p))
     elif count is not None:
-        for i in range(1, count + 1):
+        for i in range(0, count + 1):
             p = _find_by_index(dir_path, i)
             if p is None:
                 if strict_missing:

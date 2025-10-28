@@ -2,8 +2,7 @@ import numpy as np
 import time
 import os
 import matplotlib.pyplot as plt
-from simulation_and_control import pb, MotorCommands, PinWrapper, feedback_lin_ctrl, SinusoidalReference, CartesianDiffKin
-import threading
+from simulation_and_control import pb, MotorCommands, PinWrapper, feedback_lin_ctrl, CartesianDiffKin
 import pickle
 
 import sys
@@ -39,7 +38,7 @@ def main():
 
     conf_file_name = "pandaconfig.json"  # Configuration file for the robot
     root_dir = os.path.dirname(os.path.abspath(__file__))
-    
+
     # Configuration for the simulation
     sim = pb.SimInterface(conf_file_name, conf_file_path_ext = root_dir)  # Initialize simulation interface
 
@@ -58,7 +57,7 @@ def main():
     init_cartesian_pos,init_R = dyn_model.ComputeFK(init_joint_angles,controlled_frame_name)
     # print init joint
     print(f"Initial joint angles: {init_joint_angles}")
-    
+
     # check joint limits
     lower_limits, upper_limits = sim.GetBotJointsLimit()
     print(f"Lower limits: {lower_limits}")
@@ -68,14 +67,14 @@ def main():
     joint_vel_limits = sim.GetBotJointsVelLimit()
     # increase the joint vel limits to not trigger warning in the simulation
     #joint_vel_limits = [vel * 100 for vel in joint_vel_limits]
-    
+
     print(f"joint vel limits: {joint_vel_limits}")
-    
+
     # desired value for regulation
     q_des =  init_joint_angles
     qd_des_clip = np.zeros(num_joints)
-    
-    
+
+
     current_time = 0
     # Command and control loop
     cmd = MotorCommands()  # Initialize command structure for motors
@@ -89,9 +88,9 @@ def main():
     kd = 100
 
     # desired cartesian position
-    list_of_desired_cartesian_positions = [[0.5,0.0,0.1], 
-                                           [0.4,0.2,0.1], 
-                                           [0.4,-0.2,0.1], 
+    list_of_desired_cartesian_positions = [[0.5,0.0,0.1],
+                                           [0.4,0.2,0.1],
+                                           [0.4,-0.2,0.1],
                                            [0.5,0.0,0.1]]
     # desired cartesian orientation in quaternion (XYZW)
     list_of_desired_cartesian_orientations = [[0.0, 0.0, 0.0, 1.0],
@@ -103,7 +102,7 @@ def main():
     list_of_initialjoint_positions = [init_joint_angles, init_joint_angles, init_joint_angles, init_joint_angles]
 
     # Initialize data storage
-    q_mes_all, qd_mes_all, q_d_all, qd_d_all, tau_mes_all, cart_pos_all, cart_ori_all = [], [], [], [], [], [], []
+    q_mes_all, qd_mes_all, q_d_all, qd_d_all, tau_mes_all, cart_pos_all, cart_ori_all, tau_cmd_all= [], [], [], [], [], [], [], []
 
     current_time = 0  # Initialize current time
     time_step = sim.GetTimeStep()
@@ -139,7 +138,7 @@ def main():
             ori_d_des = [0.0, 0.0, 0.0]  # Desired angular velocity
             # Compute desired joint positions and velocities using Cartesian differential kinematics
             q_des, qd_des_clip = CartesianDiffKin(dyn_model,controlled_frame_name,q_mes, desired_cartesian_pos, pd_d, desired_cartesian_ori, ori_d_des, time_step, "pos",  kp_pos, kp_ori, np.array(joint_vel_limits))
-            
+
             # Control command
             tau_cmd = feedback_lin_ctrl(dyn_model, q_mes, qd_mes, q_des, qd_des_clip, kp, kd)
             cmd.SetControlCmd(tau_cmd, ["torque"] * 7)  # Set the torque command
@@ -155,7 +154,7 @@ def main():
                 print("Exiting simulation.")
                 break
 
-            
+
             # Conditional data recording
             if RECORDING:
                 q_mes_all.append(q_mes)
@@ -165,19 +164,20 @@ def main():
                 tau_mes_all.append(tau_mes)
                 cart_pos_all.append(cart_pos)
                 cart_ori_all.append(cart_ori)
+                tau_cmd_all.append(tau_cmd)
 
             # Time management
             time.sleep(time_step)  # Control loop timing
             current_time += time_step
             #print("Current time in seconds:", current_time)
-    
+
         current_time = 0  # Reset current time for potential future use
 
-        if len(q_mes_all) > 0:    
+        if len(q_mes_all) > 0:
             print("Preparing to save data...")
             # Downsample data
             # Plot the downsampled data
-            
+
             q_mes_all_downsampled = q_mes_all[::downsample_rate]
             qd_mes_all_downsampled = qd_mes_all[::downsample_rate]
             q_d_all_downsampled = q_d_all[::downsample_rate]
@@ -185,6 +185,7 @@ def main():
             tau_mes_all_downsampled = tau_mes_all[::downsample_rate]
             cart_pos_all_downsampled = cart_pos_all[::downsample_rate]
             cart_ori_all_downsampled = cart_ori_all[::downsample_rate]
+            tau_cmd_all_downsampled = tau_cmd_all[::downsample_rate]
 
             time_array = [time_step * downsample_rate * i for i in range(len(q_mes_all_downsampled))]
 
@@ -195,14 +196,17 @@ def main():
                     'time': time_array,
                     'q_mes_all': q_mes_all_downsampled,
                     'qd_mes_all': qd_mes_all_downsampled,
+                    'q_d_all': q_d_all_downsampled,
+                    'qd_d_all': qd_d_all_downsampled,
                     'tau_mes_all': tau_mes_all_downsampled,
                     'cart_pos_all': cart_pos_all_downsampled,
-                    'cart_ori_all': cart_ori_all_downsampled
+                    'cart_ori_all': cart_ori_all_downsampled,
+                    'tau_cmd_all': tau_cmd_all_downsampled
                 }, f)
             print(f"Data saved to {filename}")
 
             # Reinitialize data storage lists
-        q_mes_all, qd_mes_all, q_d_all, qd_d_all, tau_mes_all, cart_pos_all, cart_ori_all = [], [], [], [], [], [], []
+        q_mes_all, qd_mes_all, q_d_all, qd_d_all, tau_mes_all, cart_pos_all, cart_ori_all, tau_cmd_all = [], [], [], [], [], [], [],[]
 
         if PRINT_PLOTS:
             print("Plotting downsampled data...")
@@ -229,9 +233,9 @@ def main():
             plt.legend()
             plt.grid(True)
             plt.show()
-    
-    
-    
+
+
+
 
 if __name__ == '__main__':
     main()
